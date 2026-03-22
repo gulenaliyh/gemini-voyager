@@ -74,7 +74,8 @@ describe('fetchInterceptor (MAIN world script)', () => {
       expect(bridge.dataset.request).toBeTruthy();
     });
     const requestRaw = bridge.dataset.request;
-    if (!requestRaw) return;
+    expect(requestRaw).toBeTruthy();
+    if (!requestRaw) throw new Error('expected bridge request payload');
     const request = JSON.parse(requestRaw) as { requestId?: string };
     bridge.dataset.response = JSON.stringify({
       requestId: request.requestId,

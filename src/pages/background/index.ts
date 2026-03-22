@@ -216,10 +216,11 @@ function isLocalSyncEndpoint(url: string): boolean {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
     return (
-      parsed.hostname === '127.0.0.1' ||
-      parsed.hostname === 'localhost' ||
-      parsed.hostname === '[::1]'
+      host === '127.0.0.1' ||
+      host === 'localhost' ||
+      host === '::1'
     );
   } catch {
     return false;

@@ -191,7 +191,7 @@
                           .then((r) => r.blob())
                           .then(resolve)
                           .catch(reject);
-                      else reject(new Error('Invalid image data format'));
+                      else reject(new Error('Invalid or missing image data URL'));
                     }
                   } catch (e) {
                     console.warn('[Gemini Voyager] Failed to parse bridge response:', e);
