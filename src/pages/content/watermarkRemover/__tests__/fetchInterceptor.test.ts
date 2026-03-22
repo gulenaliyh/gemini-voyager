@@ -54,4 +54,37 @@ describe('fetchInterceptor (MAIN world script)', () => {
     expect(originalFetch).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(200);
   });
+
+  it('rejects invalid bridge response data URLs', async () => {
+    installInterceptor();
+
+    const response = new Response('image', {
+      status: 200,
+      headers: { 'content-length': '100', 'content-type': 'image/png' },
+    });
+    originalFetch.mockResolvedValue(response);
+
+    const bridge = document.createElement('div');
+    bridge.id = 'gv-watermark-bridge';
+    bridge.dataset.enabled = 'true';
+    document.documentElement.appendChild(bridge);
+
+    const fetchPromise = window.fetch('https://foo.googleusercontent.com/rd-gg-dl/bar=s128');
+    await vi.waitFor(() => {
+      expect(bridge.dataset.request).toBeTruthy();
+    });
+    const requestRaw = bridge.dataset.request;
+    expect(requestRaw).toBeTruthy();
+    if (!requestRaw) throw new Error('expected bridge request payload');
+    const request = JSON.parse(requestRaw) as { requestId?: string };
+    bridge.dataset.response = JSON.stringify({
+      requestId: request.requestId,
+      base64: 'data:text/html,malicious',
+    });
+    await Promise.resolve();
+
+    const finalResponse = await fetchPromise;
+    expect(finalResponse.status).toBe(200);
+    expect(originalFetch).toHaveBeenCalledTimes(1);
+  });
 });

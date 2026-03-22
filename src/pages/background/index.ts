@@ -18,6 +18,12 @@ import type { StarredMessage, StarredMessagesData } from '@/pages/content/timeli
 const CUSTOM_CONTENT_SCRIPT_ID = 'gv-custom-content-script';
 const CUSTOM_WEBSITE_KEY = 'gvPromptCustomWebsites';
 const FETCH_INTERCEPTOR_SCRIPT_ID = 'gv-fetch-interceptor';
+const TRUSTED_MESSAGE_ORIGINS = new Set([
+  'https://gemini.google.com',
+  'https://business.gemini.google',
+  'https://aistudio.google.com',
+  'https://aistudio.google.cn',
+]);
 
 // Gemini domains where the fetch interceptor should run
 const GEMINI_MATCHES = [
@@ -193,6 +199,32 @@ function toMatchPatterns(domain: string): string[] {
 
   if (!normalized) return [];
   return [`https://*.${normalized}/*`, `http://*.${normalized}/*`];
+}
+
+function isTrustedContentSender(sender: chrome.runtime.MessageSender): boolean {
+  const pageUrl = sender.tab?.url ?? sender.url;
+  if (!pageUrl) return false;
+  try {
+    const parsed = new URL(pageUrl);
+    return TRUSTED_MESSAGE_ORIGINS.has(parsed.origin);
+  } catch {
+    return false;
+  }
+}
+
+function isLocalSyncEndpoint(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === '127.0.0.1' ||
+      host === 'localhost' ||
+      host === '::1'
+    );
+  } catch {
+    return false;
+  }
 }
 
 function extractDomainsFromOrigins(origins?: string[]): string[] {
@@ -760,6 +792,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message?.type === 'gv.syncToIDE') {
         const url = String(message.url || '');
         const data = message.data || [];
+        if (!isTrustedContentSender(sender) || !isLocalSyncEndpoint(url)) {
+          sendResponse({ ok: false, error: 'unauthorized' });
+          return;
+        }
         try {
           const response = await fetch(url, {
             method: 'POST',
@@ -784,6 +820,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message?.type === 'gv.checkSyncStatus') {
         const url = String(message.url || '');
         const timeout = Number(message.timeout || 200);
+        if (!isTrustedContentSender(sender) || !isLocalSyncEndpoint(url)) {
+          sendResponse({ ok: false });
+          return;
+        }
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -807,7 +847,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message?.type === 'gv.fetchImageViaPage') {
         const url = String(message.url || '');
         const tabId = sender?.tab?.id;
-        if (!tabId || !/^https?:\/\//i.test(url)) {
+        if (!isTrustedContentSender(sender) || !tabId || !/^https?:\/\//i.test(url)) {
           sendResponse({ ok: false, error: 'invalid' });
           return;
         }
@@ -890,7 +930,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Handle image fetch
       if (!message || message.type !== 'gv.fetchImage') return;
       const url = String(message.url || '');
-      if (!/^https?:\/\//i.test(url)) {
+      if (!isTrustedContentSender(sender) || !/^https?:\/\//i.test(url)) {
         sendResponse({ ok: false, error: 'invalid_url' });
         return;
       }

@@ -183,11 +183,15 @@
                       bridge.removeAttribute('data-response');
 
                       if (data.error) reject(new Error(data.error));
-                      else
+                      else if (
+                        typeof data.base64 === 'string' &&
+                        data.base64.startsWith('data:image/')
+                      )
                         fetch(data.base64)
                           .then((r) => r.blob())
                           .then(resolve)
                           .catch(reject);
+                      else reject(new Error('Invalid or missing image data URL'));
                     }
                   } catch (e) {
                     console.warn('[Gemini Voyager] Failed to parse bridge response:', e);
