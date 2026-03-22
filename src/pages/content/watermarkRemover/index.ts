@@ -219,6 +219,7 @@ const setupMutationObserver = (): void => {
  * CustomEvents don't cross world boundaries in Firefox, so we use a hidden DOM element
  */
 const GV_BRIDGE_ID = 'gv-watermark-bridge';
+const MAX_BRIDGE_DATA_URL_LENGTH = 50 * 1024 * 1024;
 
 function getBridgeElement(): HTMLElement {
   let bridge = document.getElementById(GV_BRIDGE_ID);
@@ -282,6 +283,13 @@ async function processImageRequest(
   }
 
   try {
+    if (typeof base64 !== 'string' || !base64.startsWith('data:image/')) {
+      throw new Error('Invalid image data format');
+    }
+    if (base64.length > MAX_BRIDGE_DATA_URL_LENGTH) {
+      throw new Error('Image data too large');
+    }
+
     // Convert base64 to image element
     const img = new Image();
     await new Promise<void>((resolve, reject) => {
